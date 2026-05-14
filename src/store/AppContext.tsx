@@ -1,8 +1,6 @@
 import { createContext, useContext, useReducer, useEffect, type ReactNode } from 'react';
-import type { AppState, Member, Snapshot, ClaudeAnalysis, SimulationConfig } from '../types';
+import type { AppState, Member, Snapshot, ClaudeAnalysis, SimulationConfig, ClassificationOverride } from '../types';
 import { loadState, saveState } from '../utils/storage';
-
-// ─── Action 타입 정의 ──────────────────────────────────────────────────────────
 
 type Action =
   | { type: 'ADD_MEMBER'; payload: Member }
@@ -14,9 +12,9 @@ type Action =
   | { type: 'ADD_CLAUDE_ANALYSIS'; payload: ClaudeAnalysis }
   | { type: 'DELETE_CLAUDE_ANALYSIS'; payload: string }
   | { type: 'SET_SIMULATION'; payload: SimulationConfig }
+  | { type: 'SET_CLASSIFICATION_OVERRIDE'; payload: { key: string; override: ClassificationOverride } }
+  | { type: 'REMOVE_CLASSIFICATION_OVERRIDE'; payload: string }
   | { type: 'IMPORT_STATE'; payload: AppState };
-
-// ─── 초기 상태 ────────────────────────────────────────────────────────────────
 
 const defaultState: AppState = {
   members: [],
@@ -24,11 +22,9 @@ const defaultState: AppState = {
   targetRatios: { cash: 30, stock: 50, pension: 20 },
   claudeAnalyses: [],
   simulation: { targetReturnRate: 7, years: 10, monthlyAdd: 0 },
+  classificationOverrides: {},
 };
 
-// ─── Reducer ──────────────────────────────────────────────────────────────────
-
-/** 모든 상태 변이를 처리하는 순수 함수 */
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'ADD_MEMBER':
@@ -76,15 +72,27 @@ function reducer(state: AppState, action: Action): AppState {
     case 'SET_SIMULATION':
       return { ...state, simulation: action.payload };
 
+    case 'SET_CLASSIFICATION_OVERRIDE':
+      return {
+        ...state,
+        classificationOverrides: {
+          ...state.classificationOverrides,
+          [action.payload.key]: action.payload.override,
+        },
+      };
+
+    case 'REMOVE_CLASSIFICATION_OVERRIDE': {
+      const { [action.payload]: _removed, ...rest } = state.classificationOverrides;
+      return { ...state, classificationOverrides: rest };
+    }
+
     case 'IMPORT_STATE':
-      return action.payload;
+      return { ...defaultState, ...action.payload, classificationOverrides: action.payload.classificationOverrides ?? {} };
 
     default:
       return state;
   }
 }
-
-// ─── Context ──────────────────────────────────────────────────────────────────
 
 interface AppContextValue {
   state: AppState;
@@ -93,11 +101,12 @@ interface AppContextValue {
 
 const AppContext = createContext<AppContextValue | null>(null);
 
-/** localStorage에서 초기 상태를 복원하고 변경 시 자동 저장하는 Provider */
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, defaultState, (init) => {
     const saved = loadState();
-    return saved ?? init;
+    if (!saved) return init;
+    // 기존 저장 데이터에 classificationOverrides 없을 경우 기본값 보장
+    return { ...init, ...saved, classificationOverrides: saved.classificationOverrides ?? {} };
   });
 
   useEffect(() => {
@@ -107,7 +116,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   return <AppContext.Provider value={{ state, dispatch }}>{children}</AppContext.Provider>;
 }
 
-/** AppContext를 안전하게 사용하는 커스텀 훅 */
 export function useAppContext(): AppContextValue {
   const ctx = useContext(AppContext);
   if (!ctx) throw new Error('useAppContext must be used within AppProvider');

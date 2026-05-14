@@ -1,6 +1,12 @@
 /** 자산 분류: 현금성 / 투자성 / 연금 */
 export type AssetClass = 'cash' | 'stock' | 'pension';
 
+/** 주식 세부 분류 */
+export type StockSubType = 'individual' | 'fund' | 'ai';
+
+/** 연금 세부 분류 */
+export type PensionSubType = 'dc' | 'irp' | 'isa' | 'pension_savings' | 'etc';
+
 /** 가족 구성원 */
 export interface Member {
   id: string;
@@ -15,12 +21,23 @@ export interface AssetItem {
   accountType: string;
   productName: string;
   assetClass: AssetClass;
+  /** 주식일 때 세부 분류 */
+  stockSubType?: StockSubType;
+  /** 연금일 때 세부 분류 */
+  pensionSubType?: PensionSubType;
   /** 평가금액 (원) */
   balance: number;
   /** 투자원금 (투자성·연금 자산에만 존재) */
   costBasis?: number;
   /** 수익률 % */
   returnRate?: number;
+}
+
+/** 분류 수동 오버라이드 항목 */
+export interface ClassificationOverride {
+  assetClass: AssetClass;
+  stockSubType?: StockSubType;
+  pensionSubType?: PensionSubType;
 }
 
 /** 특정 날짜의 자산 스냅샷 (구성원 1명 단위) */
@@ -64,6 +81,8 @@ export interface AppState {
   };
   claudeAnalyses: ClaudeAnalysis[];
   simulation: SimulationConfig;
+  /** 수동 분류 오버라이드. key = `${institution}||${productName}` */
+  classificationOverrides: Record<string, ClassificationOverride>;
 }
 
 /** 자산 분류별 합계 */

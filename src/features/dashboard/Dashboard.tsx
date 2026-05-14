@@ -16,24 +16,50 @@ const ASSET_META = [
   { key: 'pension' as const, label: '연금', color: 'var(--color-pension)', badge: 'badge-pension' },
 ];
 
+const STOCK_SUB_LABELS = { individual: '개별종목', fund: '펀드', ai: 'AI투자' } as const;
+const PENSION_SUB_LABELS = { dc: 'DC형', irp: 'IRP', isa: 'ISA', pension_savings: '연금저축', etc: '기타' } as const;
+
 /** 자산 총액, 분류별 금액·비율, 증감, 추이 차트를 표시하는 메인 대시보드 */
 export default function Dashboard() {
   const { state } = useAppContext();
   const { snapshots, members } = state;
 
-  // 현재 시점 기준 구성원별 최신 스냅샷 합산
   const latestSnapshots = useMemo(() => getLatestSnapshotsPerMember(snapshots), [snapshots]);
   const summary = useMemo(() => summarizeAssets(latestSnapshots), [latestSnapshots]);
   const history = useMemo(() => buildAssetHistory(snapshots), [snapshots]);
 
-  // 전월 대비 증감 계산
   const prevSummary = useMemo(() => {
     if (history.length < 2) return null;
-    const prev = history[history.length - 2];
-    return prev;
+    return history[history.length - 2];
   }, [history]);
 
   const totalDiff = prevSummary ? summary.total - prevSummary.total : null;
+
+  // 주식 세부 분류 합산
+  const stockBreakdown = useMemo(() => {
+    const r = { individual: 0, fund: 0, ai: 0 };
+    for (const s of latestSnapshots) {
+      for (const a of s.assets) {
+        if (a.assetClass !== 'stock') continue;
+        const sub = a.stockSubType ?? 'individual';
+        r[sub] += a.balance;
+      }
+    }
+    return r;
+  }, [latestSnapshots]);
+
+  // 연금 세부 분류 합산
+  const pensionBreakdown = useMemo(() => {
+    const r = { dc: 0, irp: 0, isa: 0, pension_savings: 0, etc: 0 };
+    for (const s of latestSnapshots) {
+      for (const a of s.assets) {
+        if (a.assetClass !== 'pension') continue;
+        const sub = a.pensionSubType ?? 'etc';
+        r[sub] += a.balance;
+      }
+    }
+    return r;
+  }, [latestSnapshots]);
 
   const donutData = ASSET_META.map(({ key, label, color }) => ({
     name: label,
@@ -82,12 +108,38 @@ export default function Dashboard() {
                     <span className="text-muted" style={{ fontSize: 12 }}>{formatPercent(ratio)}</span>
                   </div>
                   <div style={{ fontSize: 20, fontWeight: 700, color }}>{formatKRW(value)}</div>
+
+                  {/* 주식 세부 분류 */}
+                  {key === 'stock' && value > 0 && (
+                    <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--color-border)', display: 'flex', flexWrap: 'wrap', gap: '4px 14px' }}>
+                      {(Object.entries(stockBreakdown) as [keyof typeof stockBreakdown, number][])
+                        .filter(([, v]) => v > 0)
+                        .map(([sub, v]) => (
+                          <span key={sub} style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                            {STOCK_SUB_LABELS[sub]} {formatKRW(v)}
+                          </span>
+                        ))}
+                    </div>
+                  )}
+
+                  {/* 연금 세부 분류 */}
+                  {key === 'pension' && value > 0 && (
+                    <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--color-border)', display: 'flex', flexWrap: 'wrap', gap: '4px 14px' }}>
+                      {(Object.entries(pensionBreakdown) as [keyof typeof pensionBreakdown, number][])
+                        .filter(([, v]) => v > 0)
+                        .map(([sub, v]) => (
+                          <span key={sub} style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                            {PENSION_SUB_LABELS[sub]} {formatKRW(v)}
+                          </span>
+                        ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
 
-          {/* 구성원별 카드 */}
+          {/* 구성원별 카드 (2명 이상) */}
           {members.length > 1 && (
             <div className="card" style={{ marginBottom: 16 }}>
               <div className="section-title">구성원별 자산</div>

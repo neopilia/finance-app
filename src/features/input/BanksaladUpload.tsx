@@ -11,7 +11,7 @@ const ASSET_CLASS_LABEL: Record<string, string> = {
 
 /** 뱅크샐러드 .xlsx 파일을 업로드하고 파싱 미리보기 후 저장하는 컴포넌트 */
 export default function BanksaladUpload({ memberId }: { memberId: string }) {
-  const { dispatch } = useAppContext();
+  const { state, dispatch } = useAppContext();
   const fileRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<AssetItem[] | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -25,7 +25,7 @@ export default function BanksaladUpload({ memberId }: { memberId: string }) {
     if (!file) return;
     setLoading(true);
     setSaved(false);
-    const result = await parseBanksaladFile(file);
+    const result = await parseBanksaladFile(file, state.classificationOverrides ?? {});
     setPreview(result.assets);
     setWarnings(result.warnings);
     setLoading(false);
